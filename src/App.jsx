@@ -172,7 +172,7 @@ export default function TweetAutomator() {
       const now = new Date().toLocaleString();
       const prompt = `
         Current Date/Time: ${now}.
-        You are a professional Software Engineer specializing in AI. 
+        You are a professional Software Engineer specializing in Artificial Intelligence. 
         Write a single, and engaging tweet about the topic: "${topic}".
         - Make it relevant to general recent trends if applicable.
         - Under 280 characters.
