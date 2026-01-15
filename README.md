@@ -1,70 +1,80 @@
-# Getting Started with Create React App
+# 🤖 Tweet Automator: Autopilot Edition
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Tweet Automator is a high-performance, AI-driven application designed to automate your Twitter/X presence. By leveraging the power of **Google Gemini AI**, it generates insightful, engaging, and professional content based on your chosen topics and schedules posts automatically.
 
-## Available Scripts
+![Aesthetic Dark Mode UI](https://img.shields.io/badge/UI-Dark%20Mode-blueviolet)
+![Tailwind CSS](https://img.shields.io/badge/Styled%20with-Tailwind%20CSS-06B6D4)
+![Powered by Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4)
 
-In the project directory, you can run:
+## ✨ Key Features
 
-### `npm start`
+- **🧠 AI Content Engine**: Uses Gemini 2.5 Flash to generate context-aware, professional tweets under 280 characters.
+- **🚀 Autopilot Mode**: Fully automated loop that picks random topics and posts every 40 minutes.
+- **📊 Topic Manager**: Add up to 10 niche topics (e.g., AI, Crypto, Web Dev) to diversify your feed.
+- **🖥️ System Console**: Real-time terminal-style logging to track generations, signings, and API responses.
+- **🔒 Secure Configuration**: Secrets are managed via `.env` files and local persistence, keeping your keys safe and private.
+- **🎨 Premium UI**: A sleek, glassmorphic dark interface built with Tailwind CSS and Lucide icons.
 
-Runs the app in the development mode.\
+## 🛠️ Tech Stack
+
+- **Frontend**: React 19
+- **Styling**: Tailwind CSS (v3)
+- **AI**: Google Generative AI (Gemini API)
+- **Authentication**: OAuth 1.0a (Custom Native Implementation)
+- **Icons**: Lucide React
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- A Gemini API Key (from [Google AI Studio](https://aistudio.google.com/))
+- Twitter API Credentials (Consumer Key/Secret & Access Token/Secret from [Twitter Developer Portal](https://developer.twitter.com/))
+
+### 2. Installation
+
+Clone the repository and install dependencies:
+
+```bash
+npm install
+```
+
+### 3. Environment Setup
+
+Create a `.env` file in the root directory and add your credentials:
+
+```env
+REACT_APP_GEMINI_KEY=your_gemini_key
+REACT_APP_TWITTER_CONSUMER_KEY=your_key
+REACT_APP_TWITTER_CONSUMER_SECRET=your_secret
+REACT_APP_TWITTER_ACCESS_TOKEN=your_token
+REACT_APP_TWITTER_TOKEN_SECRET=your_token_secret
+REACT_APP_CORS_PROXY=https://cors-anywhere.herokuapp.com/
+```
+
+### 4. Run the App
+
+```bash
+npm start
+```
+
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 📖 How to Use
 
-### `npm test`
+1.  **Configure**: Click the gear icon (Settings) in the top right to verify your API keys.
+2.  **Add Topics**: Enter topics like "Machine Learning" or "Productivity" in the Topic Manager.
+3.  **Deploy**:
+    - Click **Start Autopilot** for hands-free automation.
+    - Click **Run Once** to generate and post a single tweet immediately.
+4.  **Monitor**: Watch the **System Logs** to see the AI in action.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## ⚠️ Important Notes
 
-### `npm run build`
+- **CORS Proxy**: Direct browser-to-Twitter API calls are blocked by CORS. The app uses a proxy (defaulting to Heroku's CORS Anywhere). For production use, it is recommended to host your own proxy.
+- **Persistence**: Your configuration and topics are saved to your browser's `localStorage`.
+- **Keep it Open**: Autopilot requires the browser tab to remain active.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+_Created with ❤️ for X power users._
