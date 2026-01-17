@@ -7,57 +7,7 @@ import { Settings, Send, Twitter, Bot, AlertTriangle, CheckCircle, XCircle, Term
  * ------------------------------------------------------------------
  * Pure frontend implementation using native Web Crypto API.
  */
-const OAuth = {
-  percentEncode: (str) => {
-    return encodeURIComponent(str)
-      .replace(/!/g, '%21')
-      .replace(/\*/g, '%2A')
-      .replace(/'/g, '%27')
-      .replace(/\(/g, '%28')
-      .replace(/\)/g, '%29');
-  },
-
-  getNonce: () => {
-    return Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-  },
-
-  getTimestamp: () => {
-    return Math.floor(Date.now() / 1000).toString();
-  },
-
-  generateSignature: async (method, url, params, consumerSecret, tokenSecret) => {
-    const sortedKeys = Object.keys(params).sort();
-    let paramString = '';
-    
-    sortedKeys.forEach((key, index) => {
-      paramString += `${key}=${OAuth.percentEncode(params[key])}`;
-      if (index < sortedKeys.length - 1) paramString += '&';
-    });
-
-    const signatureBase = `${method.toUpperCase()}&${OAuth.percentEncode(url)}&${OAuth.percentEncode(paramString)}`;
-    const signingKey = `${OAuth.percentEncode(consumerSecret)}&${OAuth.percentEncode(tokenSecret)}`;
-    
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(signingKey);
-    const data = encoder.encode(signatureBase);
-
-    const cryptoKey = await window.crypto.subtle.importKey(
-      "raw", 
-      keyData, 
-      { name: "HMAC", hash: "SHA-1" }, 
-      false, 
-      ["sign"]
-    );
-
-    const signatureBuffer = await window.crypto.subtle.sign(
-      "HMAC", 
-      cryptoKey, 
-      data
-    );
-
-    return btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
-  }
-};
+// [OAuth Object removed - Logic moved to Main Process]
 
 /**
  * ------------------------------------------------------------------
@@ -71,18 +21,17 @@ export default function TweetAutomator() {
     twitterConsumerKey: process.env.REACT_APP_TWITTER_CONSUMER_KEY || '',
     twitterConsumerSecret: process.env.REACT_APP_TWITTER_CONSUMER_SECRET || '',
     twitterAccessToken: process.env.REACT_APP_TWITTER_ACCESS_TOKEN || '',
-    twitterTokenSecret: process.env.REACT_APP_TWITTER_TOKEN_SECRET || '',
-    corsProxy: process.env.REACT_APP_CORS_PROXY || 'https://cors-anywhere.herokuapp.com/'
+    twitterTokenSecret: process.env.REACT_APP_TWITTER_TOKEN_SECRET || ''
   });
 
   // -- App Logic State --
+
   const [topics, setTopics] = useState([]);
   const [newTopic, setNewTopic] = useState('');
   const [logs, setLogs] = useState([]);
   const [status, setStatus] = useState('idle'); 
   const [showSettings, setShowSettings] = useState(false);
   const [generatedContent, setGeneratedContent] = useState('');
-  const [useProxy, setUseProxy] = useState(false);
   
   // -- Automation State --
   const [isAutomated, setIsAutomated] = useState(false);
@@ -166,6 +115,12 @@ export default function TweetAutomator() {
       return null;
     }
 
+    // Check availability of Electron API
+    if (!window.electronAPI) {
+      addLog('Error', 'This feature requires the Desktop App.', 'error');
+      return null;
+    }
+
     addLog('Gemini', `Topic: "${topic}". Generating timely content...`);
 
     try {
@@ -181,18 +136,9 @@ export default function TweetAutomator() {
         - Do not start with "Here is a tweet". Just output the tweet text.
       `;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${config.geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        }
-      );
+      // Call Electron IPC
+      const data = await window.electronAPI.geminiGenerate(config.geminiKey, prompt);
 
-      if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
-
-      const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       
       if (!text) throw new Error('No text returned from Gemini.');
@@ -213,55 +159,30 @@ export default function TweetAutomator() {
       return;
     }
 
-    addLog('Twitter', 'Signing and posting tweet...');
+    // Check availability of Electron API
+    if (!window.electronAPI) {
+      addLog('Error', 'Automated posting requires Desktop App. Opening Web Intent.', 'warning');
+      openWebIntent(tweetText);
+      return;
+    }
+
+    addLog('Twitter', 'Unknown signature... sending to Main process...');
     setStatus('posting');
 
-    const method = 'POST';
-    const baseUrl = 'https://api.twitter.com/2/tweets';
-    const targetUrl = useProxy ? `${config.corsProxy}${baseUrl}` : baseUrl;
-
-    const oauthParams = {
-      oauth_consumer_key: config.twitterConsumerKey,
-      oauth_token: config.twitterAccessToken,
-      oauth_signature_method: 'HMAC-SHA1',
-      oauth_timestamp: OAuth.getTimestamp(),
-      oauth_nonce: OAuth.getNonce(),
-      oauth_version: '1.0'
+    const keys = {
+      consumerKey: config.twitterConsumerKey,
+      consumerSecret: config.twitterConsumerSecret,
+      accessToken: config.twitterAccessToken,
+      tokenSecret: config.twitterTokenSecret
     };
 
     try {
-      const signature = await OAuth.generateSignature(
-        method,
-        baseUrl,
-        oauthParams,
-        config.twitterConsumerSecret,
-        config.twitterTokenSecret
-      );
-
-      const authHeader = `OAuth oauth_consumer_key="${oauthParams.oauth_consumer_key}",oauth_token="${oauthParams.oauth_token}",oauth_signature_method="HMAC-SHA1",oauth_timestamp="${oauthParams.oauth_timestamp}",oauth_nonce="${oauthParams.oauth_nonce}",oauth_version="1.0",oauth_signature="${OAuth.percentEncode(signature)}"`;
-
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json',
-          'x-requested-with': 'XMLHttpRequest' 
-        },
-        body: JSON.stringify({ text: tweetText })
-      });
-
-      if (!response.ok) {
-        if (response.status === 0 || response.status === 403 || response.status === 401) {
-             throw new Error("CORS/Auth Error. Check proxy/keys.");
-        }
-        throw new Error(`Twitter API Error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Call Electron IPC
+      const data = await window.electronAPI.twitterPost(keys, tweetText);
       addLog('Twitter', `Success! Tweet ID: ${data.data.id}`);
     } catch (error) {
       addLog('Twitter', `Failed: ${error.message}`, 'error');
-      if (!isAutomated) openWebIntent(tweetText); // Only fallback to manual if not automated
+      if (!isAutomated) openWebIntent(tweetText);
     }
   };
 
@@ -407,19 +328,8 @@ export default function TweetAutomator() {
                </button>
              </div>
              
-             <div className="mt-4 flex items-center gap-2">
-                <input 
-                  type="checkbox" 
-                  id="proxyToggle"
-                  checked={useProxy}
-                  onChange={(e) => setUseProxy(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-0"
-                />
-                <label htmlFor="proxyToggle" className="text-xs text-slate-500 cursor-pointer select-none">
-                  Use Proxy (Required for Autopilot)
-                </label>
-             </div>
           </div>
+
 
           {/* Topic List */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg shadow-black/20">
@@ -610,18 +520,9 @@ export default function TweetAutomator() {
                 </div>
               </div>
 
-              {/* Proxy Section */}
-              <div className="space-y-2 pt-4 border-t border-slate-800">
-                <label className="text-xs uppercase font-bold text-slate-500">CORS Proxy URL</label>
-                <input 
-                  type="text" 
-                  value={config.corsProxy}
-                  onChange={(e) => setConfig({...config, corsProxy: e.target.value})}
-                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-slate-400 focus:border-cyan-500 outline-none"
-                />
               </div>
 
-            </div>
+
 
             <div className="p-6 border-t border-slate-800 flex justify-end">
               <button 

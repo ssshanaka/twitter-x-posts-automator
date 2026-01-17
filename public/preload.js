@@ -27,13 +27,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App information
   isElectron: true,
 
-  // Future: Add more controlled APIs here as needed
-  // Example: File operations, system dialogs, etc.
-  // Always validate and sanitize data in main process before executing
+  // --- API Bridges ---
   
-  // Example for future use:
-  // openFile: () => ipcRenderer.invoke('dialog:openFile'),
-  // saveFile: (data) => ipcRenderer.invoke('dialog:saveFile', data)
+  // Call Gemini API via Main Process (No CORS)
+  geminiGenerate: (apiKey, prompt) => ipcRenderer.invoke('gemini-generate', { apiKey, prompt }),
+
+  // Post to Twitter via Main Process (No CORS, Secure Signing)
+  twitterPost: (keys, text) => ipcRenderer.invoke('twitter-post', { keys, text }),
 });
 
 // Log that preload script loaded successfully (dev only)

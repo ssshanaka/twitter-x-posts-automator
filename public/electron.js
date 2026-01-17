@@ -1,9 +1,138 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
 const isDev = process.env.NODE_ENV !== 'production';
 
 // Keep a global reference to prevent garbage collection
 let mainWindow;
+
+// --- OAuth 1.0a Helper (Node.js version) ---
+const OAuth = {
+  percentEncode: (str) => {
+    return encodeURIComponent(str)
+      .replace(/!/g, '%21')
+      .replace(/\*/g, '%2A')
+      .replace(/'/g, '%27')
+      .replace(/\(/g, '%28')
+      .replace(/\)/g, '%29');
+  },
+
+  getNonce: () => {
+    return crypto.randomBytes(16).toString('hex'); // Generate random nonce
+  },
+
+  getTimestamp: () => {
+    return Math.floor(Date.now() / 1000).toString();
+  },
+
+  generateSignature: (method, url, params, consumerSecret, tokenSecret) => {
+    const sortedKeys = Object.keys(params).sort();
+    let paramString = '';
+    
+    sortedKeys.forEach((key, index) => {
+      paramString += `${key}=${OAuth.percentEncode(params[key])}`;
+      if (index < sortedKeys.length - 1) paramString += '&';
+    });
+
+    const signatureBase = `${method.toUpperCase()}&${OAuth.percentEncode(url)}&${OAuth.percentEncode(paramString)}`;
+    const signingKey = `${OAuth.percentEncode(consumerSecret)}&${OAuth.percentEncode(tokenSecret)}`;
+    
+    return crypto.createHmac('sha1', signingKey).update(signatureBase).digest('base64');
+  }
+};
+
+// --- IPC Handlers ---
+
+// 1. Gemini Generation Handler
+ipcMain.handle('gemini-generate', async (event, { apiKey, prompt }) => {
+  if (!apiKey) throw new Error('Missing Gemini API Key');
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API Error Details:', errorText);
+      throw new Error(`Gemini API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Gemini Generate Error:', error);
+    throw error;
+  }
+});
+
+// 2. Twitter Post Handler
+ipcMain.handle('twitter-post', async (event, { keys, text }) => {
+  const { consumerKey, consumerSecret, accessToken, tokenSecret } = keys;
+  
+  console.log('Twitter Auth Debug:', {
+    consumerKeyPrefix: consumerKey?.substring(0, 4),
+    accessTokenPrefix: accessToken?.substring(0, 4),
+    hasConsumerSecret: !!consumerSecret,
+    hasTokenSecret: !!tokenSecret
+  });
+  
+  if (!consumerKey || !consumerSecret || !accessToken || !tokenSecret) {
+    throw new Error('Missing Twitter Credentials');
+  }
+
+  const method = 'POST';
+  const url = 'https://api.twitter.com/2/tweets';
+  
+  const oauthParams = {
+    oauth_consumer_key: consumerKey,
+    oauth_token: accessToken,
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_timestamp: OAuth.getTimestamp(),
+    oauth_nonce: OAuth.getNonce(),
+    oauth_version: '1.0'
+  };
+
+  const signature = OAuth.generateSignature(
+    method,
+    url,
+    oauthParams,
+    consumerSecret,
+    tokenSecret
+  );
+
+  const authHeader = `OAuth oauth_consumer_key="${oauthParams.oauth_consumer_key}",oauth_token="${oauthParams.oauth_token}",oauth_signature_method="HMAC-SHA1",oauth_timestamp="${oauthParams.oauth_timestamp}",oauth_nonce="${oauthParams.oauth_nonce}",oauth_version="1.0",oauth_signature="${OAuth.percentEncode(signature)}"`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text })
+    });
+
+    if (!response.ok) {
+      // Try to get error details
+      const errorText = await response.text();
+      console.error('Twitter API Error Details:', errorText);
+      throw new Error(`Twitter API Error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Twitter Post Error:', error);
+    throw error;
+  }
+});
+
 
 function createWindow() {
   // Create the browser window with security settings
@@ -20,6 +149,9 @@ function createWindow() {
       // Security: Load preload script for controlled IPC bridge
       preload: path.join(__dirname, 'preload.js'),
       // Security: Disable web security in dev (for CORS), enable in production
+      // Note: With API calls moved to main process, we might not need to disable webSecurity in dev anymore,
+      // but keeping it strictly for hot-reload of images/resources if needed.
+      // For APIs, it's irrelevant now as Main process has no CORS.
       webSecurity: !isDev,
       // Security: Disable remote module
       enableRemoteModule: false
@@ -69,6 +201,30 @@ function createWindow() {
   // Handle window closed
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Handle window.open (e.g. from openWebIntent)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Open external URLs in the user's default browser
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      require('electron').shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  // Security: Prevent navigation to external URLs within the main window
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    const parsedUrl = new URL(navigationUrl);
+    
+    // Allow localhost navigation in dev mode
+    if (isDev && parsedUrl.host === 'localhost:3000') {
+      return;
+    }
+    
+    // Prevent navigation to external URLs (keep user in app)
+    if (parsedUrl.origin !== 'file://') {
+      event.preventDefault();
+    }
   });
 
   // Create application menu
@@ -148,19 +304,4 @@ app.on('activate', () => {
   }
 });
 
-// Security: Prevent navigation to external URLs
-app.on('web-contents-created', (event, contents) => {
-  contents.on('will-navigate', (event, navigationUrl) => {
-    const parsedUrl = new URL(navigationUrl);
-    
-    // Allow localhost navigation in dev mode
-    if (isDev && parsedUrl.host === 'localhost:3000') {
-      return;
-    }
-    
-    // Prevent navigation to external URLs
-    if (parsedUrl.origin !== 'file://') {
-      event.preventDefault();
-    }
-  });
-});
+
