@@ -45,27 +45,70 @@ export default function TweetAutomator() {
 
   // -- Load/Save Config & Topics --
   useEffect(() => {
-    const savedConfig = localStorage.getItem('tweet_automator_config');
-    const savedTopics = localStorage.getItem('tweet_automator_topics');
+    // Load from secure storage (Electron) or fallback to localStorage (browser)
+    const loadData = async () => {
+      if (window.electronAPI) {
+        try {
+          const savedConfig = await window.electronAPI.getConfig();
+          const savedTopics = await window.electronAPI.getTopics();
+          
+          if (savedConfig && Object.keys(savedConfig).length > 0) {
+            setConfig(savedConfig);
+          }
+          if (savedTopics && savedTopics.length > 0) {
+            setTopics(savedTopics);
+          }
+        } catch (error) {
+          console.error('Failed to load from secure storage:', error);
+        }
+      } else {
+        // Browser fallback to localStorage
+        const savedConfig = localStorage.getItem('tweet_automator_config');
+        const savedTopics = localStorage.getItem('tweet_automator_topics');
+        
+        if (savedConfig) setConfig(JSON.parse(savedConfig));
+        if (savedTopics) setTopics(JSON.parse(savedTopics));
+      }
+      
+      addLog('System', 'Ready. Add topics and start automation.');
+    };
     
-    if (savedConfig) setConfig(JSON.parse(savedConfig));
-    if (savedTopics) setTopics(JSON.parse(savedTopics));
-    
-    addLog('System', 'Ready. Add topics and start automation.');
+    loadData();
     
     return () => stopAutomation(); // Cleanup on unmount
   }, []);
 
-  const saveConfig = (newConfig) => {
+  const saveConfig = async (newConfig) => {
     setConfig(newConfig);
-    localStorage.setItem('tweet_automator_config', JSON.stringify(newConfig));
+    
+    // Save to secure storage (Electron) or fallback to localStorage (browser)
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.saveConfig(newConfig);
+      } catch (error) {
+        console.error('Failed to save config to secure storage:', error);
+      }
+    } else {
+      localStorage.setItem('tweet_automator_config', JSON.stringify(newConfig));
+    }
+    
     setShowSettings(false);
     addLog('System', 'Configuration saved.');
   };
 
-  const saveTopics = (newTopics) => {
+  const saveTopics = async (newTopics) => {
     setTopics(newTopics);
-    localStorage.setItem('tweet_automator_topics', JSON.stringify(newTopics));
+    
+    // Save to secure storage (Electron) or fallback to localStorage (browser)
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.saveTopics(newTopics);
+      } catch (error) {
+        console.error('Failed to save topics to secure storage:', error);
+      }
+    } else {
+      localStorage.setItem('tweet_automator_topics', JSON.stringify(newTopics));
+    }
   };
 
   const addTopic = () => {

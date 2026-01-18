@@ -1,7 +1,23 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
+const Store = require('electron-store');
 const isDev = process.env.NODE_ENV !== 'production';
+
+// Initialize secure storage
+const store = new Store({
+  encryptionKey: 'twitter-automator-secure-key', // In production, use a more secure key
+  defaults: {
+    config: {
+      geminiKey: '',
+      twitterConsumerKey: '',
+      twitterConsumerSecret: '',
+      twitterAccessToken: '',
+      twitterTokenSecret: ''
+    },
+    topics: []
+  }
+});
 
 // Keep a global reference to prevent garbage collection
 let mainWindow;
@@ -133,6 +149,30 @@ ipcMain.handle('twitter-post', async (event, { keys, text }) => {
   }
 });
 
+// --- Secure Storage Handlers ---
+
+// 1. Get Config
+ipcMain.handle('store-get-config', async () => {
+  return store.get('config');
+});
+
+// 2. Save Config
+ipcMain.handle('store-save-config', async (event, config) => {
+  store.set('config', config);
+  return true;
+});
+
+// 3. Get Topics
+ipcMain.handle('store-get-topics', async () => {
+  return store.get('topics', []);
+});
+
+// 4. Save Topics
+ipcMain.handle('store-save-topics', async (event, topics) => {
+  store.set('topics', topics);
+  return true;
+});
+
 
 function createWindow() {
   // Create the browser window with security settings
@@ -192,8 +232,8 @@ function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': isDev 
-          ? ["default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* https://generativelanguage.googleapis.com https://api.twitter.com https://cors-anywhere.herokuapp.com"]
-          : ["default-src 'self' 'unsafe-inline'; connect-src 'self' https://generativelanguage.googleapis.com https://api.twitter.com https://cors-anywhere.herokuapp.com"]
+          ? ["default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* https://generativelanguage.googleapis.com https://api.twitter.com"]
+          : ["default-src 'self' 'unsafe-inline'; connect-src 'self' https://generativelanguage.googleapis.com https://api.twitter.com"]
       }
     });
   });

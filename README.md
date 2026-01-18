@@ -145,11 +145,13 @@ The built application will be in the `dist/` folder:
 
 ## ⚠️ Important Notes
 
-- **CORS Proxy**: Direct browser-to-Twitter API calls are blocked by CORS. The app uses a proxy (defaulting to Heroku's CORS Anywhere). For production use, it is recommended to host your own proxy.
-- **Persistence**: Your configuration and topics are saved to your browser's `localStorage`.
+- **Desktop vs Browser Mode**:
+  - **Desktop App** (Recommended): No CORS issues! API calls go through the Electron backend.
+  - **Browser Mode**: Limited - cannot make automated API calls due to CORS restrictions. Only Web Intents (manual posting) work.
+- **Persistence**: Your configuration and topics are saved to `localStorage`.
 - **Keep it Open**:
-  - **Web Version**: Requires the browser tab to remain active during autopilot.
   - **Desktop Version**: Can run in the background with the window minimized.
+  - **Web Version**: Requires the browser tab to remain active.
 - **Security**: API keys are stored locally. Never commit `.env` files to version control.
 
 ## 🔐 Security Best Practices

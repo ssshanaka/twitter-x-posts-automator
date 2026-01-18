@@ -34,6 +34,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Post to Twitter via Main Process (No CORS, Secure Signing)
   twitterPost: (keys, text) => ipcRenderer.invoke('twitter-post', { keys, text }),
+
+  // --- Secure Storage ---
+  
+  // Get configuration from secure storage
+  getConfig: () => ipcRenderer.invoke('store-get-config'),
+  
+  // Save configuration to secure storage
+  saveConfig: (config) => ipcRenderer.invoke('store-save-config', config),
+  
+  // Get topics from secure storage
+  getTopics: () => ipcRenderer.invoke('store-get-topics'),
+  
+  // Save topics to secure storage
+  saveTopics: (topics) => ipcRenderer.invoke('store-save-topics', topics),
 });
 
 // Log that preload script loaded successfully (dev only)
