@@ -63,27 +63,47 @@ const OAuth = {
 ipcMain.handle('gemini-generate', async (event, { apiKey, prompt }) => {
   if (!apiKey) throw new Error('Missing Gemini API Key');
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+  const maxRetries = 3;
+  let delay = 2000;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          signal: AbortSignal.timeout(30000) // 30 second timeout
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Gemini API Error (Attempt ${attempt}):`, errorText);
+        
+        // Retry on 503 Service Unavailable
+        if (response.status === 503 && attempt < maxRetries) {
+          console.log(`Gemini model overloaded. Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          continue;
+        }
+
+        throw new Error(`Gemini API Error: ${response.status} ${response.statusText} - ${errorText}`);
       }
-    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API Error Details:', errorText);
-      throw new Error(`Gemini API Error: ${response.status} ${response.statusText} - ${errorText}`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Gemini Generate Error (Attempt ${attempt}):`, error);
+      if (attempt === maxRetries) throw error;
+      
+      // Retry on network errors
+      console.log(`Network error occurred. Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2;
     }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Gemini Generate Error:', error);
-    throw error;
   }
 });
 
@@ -105,47 +125,70 @@ ipcMain.handle('twitter-post', async (event, { keys, text }) => {
   const method = 'POST';
   const url = 'https://api.twitter.com/2/tweets';
   
-  const oauthParams = {
-    oauth_consumer_key: consumerKey,
-    oauth_token: accessToken,
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_timestamp: OAuth.getTimestamp(),
-    oauth_nonce: OAuth.getNonce(),
-    oauth_version: '1.0'
-  };
+  const maxRetries = 3;
+  let delay = 2000;
 
-  const signature = OAuth.generateSignature(
-    method,
-    url,
-    oauthParams,
-    consumerSecret,
-    tokenSecret
-  );
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const oauthParams = {
+        oauth_consumer_key: consumerKey,
+        oauth_token: accessToken,
+        oauth_signature_method: 'HMAC-SHA1',
+        oauth_timestamp: OAuth.getTimestamp(),
+        oauth_nonce: OAuth.getNonce(),
+        oauth_version: '1.0'
+      };
 
-  const authHeader = `OAuth oauth_consumer_key="${oauthParams.oauth_consumer_key}",oauth_token="${oauthParams.oauth_token}",oauth_signature_method="HMAC-SHA1",oauth_timestamp="${oauthParams.oauth_timestamp}",oauth_nonce="${oauthParams.oauth_nonce}",oauth_version="1.0",oauth_signature="${OAuth.percentEncode(signature)}"`;
+      const signature = OAuth.generateSignature(
+        method,
+        url,
+        oauthParams,
+        consumerSecret,
+        tokenSecret
+      );
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ text })
-    });
+      const authHeader = `OAuth oauth_consumer_key="${oauthParams.oauth_consumer_key}",oauth_token="${oauthParams.oauth_token}",oauth_signature_method="HMAC-SHA1",oauth_timestamp="${oauthParams.oauth_timestamp}",oauth_nonce="${oauthParams.oauth_nonce}",oauth_version="1.0",oauth_signature="${OAuth.percentEncode(signature)}"`;
 
-    if (!response.ok) {
-      // Try to get error details
-      const errorText = await response.text();
-      console.error('Twitter API Error Details:', errorText);
-      throw new Error(`Twitter API Error: ${response.status} ${response.statusText}`);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text }),
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      });
+
+      if (!response.ok) {
+        // Try to get error details
+        const errorText = await response.text();
+        console.error(`Twitter API Error (Attempt ${attempt}):`, errorText);
+        
+        // Don't retry on client errors (4xx) except maybe 429
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          throw new Error(`Twitter API Error: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        if (attempt < maxRetries) {
+          console.log(`Twitter API error ${response.status}. Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+          continue;
+        }
+
+        throw new Error(`Twitter API Error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Twitter Post Error (Attempt ${attempt}):`, error);
+      if (attempt === maxRetries) throw error;
+      
+      console.log(`Network error or timeout. Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2;
     }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Twitter Post Error:', error);
-    throw error;
   }
 });
 
