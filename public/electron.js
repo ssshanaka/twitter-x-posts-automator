@@ -2,7 +2,19 @@ const { app, BrowserWindow, Menu, ipcMain, safeStorage } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const Store = require('electron-store');
+const log = require('electron-log');
 const isDev = process.env.NODE_ENV !== 'production';
+
+// Configure electron-log
+// In production: logs saved to %APPDATA%/twitter-x-automator/logs/
+// In development: logs to console + file
+log.transports.file.level = 'info';
+log.transports.console.level = isDev ? 'debug' : 'info';
+log.info('=== Twitter Automator Started ===');
+log.info(`Environment: ${isDev ? 'Development' : 'Production'}`);
+log.info(`App Version: ${app.getVersion()}`);
+log.info(`Electron Version: ${process.versions.electron}`);
+log.info(`Log file location: ${log.transports.file.getFile().path}`);
 
 // First, try to migrate from old encrypted storage (with hardcoded key)
 let oldStore;
@@ -21,7 +33,7 @@ try {
   }
 } catch (error) {
   // If migration fails, that's okay - we'll start fresh
-  console.log('No old config to migrate or migration failed:', error.message);
+  log.info('No old config to migrate or migration failed:', error.message);
 }
 
 // Initialize new storage without encryption (we'll use safeStorage for sensitive data)
@@ -48,7 +60,7 @@ const secureStorage = {
       store.set(key, encrypted.toString('base64'));
     } else {
       // Fallback for systems where encryption is not available
-      console.warn('safeStorage not available, storing unencrypted');
+      log.warn('safeStorage not available, storing unencrypted');
       store.set(key, value);
     }
   },
@@ -63,7 +75,7 @@ const secureStorage = {
         const buffer = Buffer.from(stored, 'base64');
         return safeStorage.decryptString(buffer);
       } catch (error) {
-        console.error(`Failed to decrypt ${key}:`, error);
+        log.error(`Failed to decrypt ${key}:`, error);
         return defaultValue;
       }
     } else {
@@ -134,11 +146,11 @@ ipcMain.handle('gemini-generate', async (event, { apiKey, prompt }) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Gemini API Error (Attempt ${attempt}):`, errorText);
+        log.error(`Gemini API Error (Attempt ${attempt}):`, errorText);
         
         // Retry on 503 Service Unavailable
         if (response.status === 503 && attempt < maxRetries) {
-          console.log(`Gemini model overloaded. Retrying in ${delay}ms...`);
+          log.info(`Gemini model overloaded. Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           delay *= 2; // Exponential backoff
           continue;
@@ -150,11 +162,11 @@ ipcMain.handle('gemini-generate', async (event, { apiKey, prompt }) => {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error(`Gemini Generate Error (Attempt ${attempt}):`, error);
+      log.error(`Gemini Generate Error (Attempt ${attempt}):`, error);
       if (attempt === maxRetries) throw error;
       
       // Retry on network errors
-      console.log(`Network error occurred. Retrying in ${delay}ms...`);
+      log.info(`Network error occurred. Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       delay *= 2;
     }
@@ -165,7 +177,7 @@ ipcMain.handle('gemini-generate', async (event, { apiKey, prompt }) => {
 ipcMain.handle('twitter-post', async (event, { keys, text }) => {
   const { consumerKey, consumerSecret, accessToken, tokenSecret } = keys;
   
-  console.log('Twitter Auth Debug:', {
+  log.debug('Twitter Auth Debug:', {
     consumerKeyPrefix: consumerKey?.substring(0, 4),
     accessTokenPrefix: accessToken?.substring(0, 4),
     hasConsumerSecret: !!consumerSecret,
@@ -216,7 +228,7 @@ ipcMain.handle('twitter-post', async (event, { keys, text }) => {
       if (!response.ok) {
         // Try to get error details
         const errorText = await response.text();
-        console.error(`Twitter API Error (Attempt ${attempt}):`, errorText);
+        log.error(`Twitter API Error (Attempt ${attempt}):`, errorText);
         
         // Don't retry on client errors (4xx) except maybe 429
         if (response.status >= 400 && response.status < 500 && response.status !== 429) {
@@ -224,7 +236,7 @@ ipcMain.handle('twitter-post', async (event, { keys, text }) => {
         }
 
         if (attempt < maxRetries) {
-          console.log(`Twitter API error ${response.status}. Retrying in ${delay}ms...`);
+          log.info(`Twitter API error ${response.status}. Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           delay *= 2;
           continue;
@@ -236,10 +248,10 @@ ipcMain.handle('twitter-post', async (event, { keys, text }) => {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error(`Twitter Post Error (Attempt ${attempt}):`, error);
+      log.error(`Twitter Post Error (Attempt ${attempt}):`, error);
       if (attempt === maxRetries) throw error;
       
-      console.log(`Network error or timeout. Retrying in ${delay}ms...`);
+      log.info(`Network error or timeout. Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       delay *= 2;
     }
@@ -325,7 +337,7 @@ function createWindow() {
 
   // Handle failed loads
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('Failed to load:', errorDescription);
+    log.error('Failed to load:', errorDescription);
     if (isDev && errorCode === -102) {
       // ERR_CONNECTION_REFUSED - React dev server not ready yet
       setTimeout(() => {
@@ -440,7 +452,7 @@ app.whenReady().then(() => {
   // Perform migration if needed (must be done after app is ready for safeStorage)
   if (needsMigration && oldStore) {
     try {
-      console.log('Migrating from old encrypted storage to OS-level safeStorage...');
+      log.info('Migrating from old encrypted storage to OS-level safeStorage...');
       const oldConfig = oldStore.get('config');
       
       // Save to new secure storage using safeStorage
@@ -459,10 +471,10 @@ app.whenReady().then(() => {
       // Clear old config data (keep the store file but remove sensitive data)
       oldStore.delete('config');
       
-      console.log('✅ Migration complete! API keys now secured with OS-level encryption.');
+      log.info('✅ Migration complete! API keys now secured with OS-level encryption.');
     } catch (error) {
-      console.error('Migration failed:', error);
-      console.log('You may need to re-enter your API keys.');
+      log.error('Migration failed:', error);
+      log.warn('You may need to re-enter your API keys.');
     }
   }
   
@@ -484,3 +496,24 @@ app.on('activate', () => {
 });
 
 
+// Global error handlers - Ensure all crashes are logged
+process.on('uncaughtException', (error) => {
+  log.error('=== UNCAUGHT EXCEPTION ===');
+  log.error('Error:', error);
+  log.error('Stack:', error.stack);
+  // Don't exit immediately - give time for log to be written
+  setTimeout(() => {
+    app.quit();
+  }, 1000);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  log.error('=== UNHANDLED PROMISE REJECTION ===');
+  log.error('Promise:', promise);
+  log.error('Reason:', reason);
+});
+
+// Log when app is about to quit
+app.on('before-quit', () => {
+  log.info('=== App is shutting down ===');
+});
