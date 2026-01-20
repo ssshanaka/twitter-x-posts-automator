@@ -1,23 +1,77 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, safeStorage } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const Store = require('electron-store');
 const isDev = process.env.NODE_ENV !== 'production';
 
-// Initialize secure storage
+// First, try to migrate from old encrypted storage (with hardcoded key)
+let oldStore;
+let needsMigration = false;
+try {
+  // Try to read with old encryption key
+  oldStore = new Store({
+    encryptionKey: 'twitter-automator-secure-key',
+    name: 'config' // electron-store default name
+  });
+  
+  // Check if there's old config data to migrate
+  const oldConfig = oldStore.get('config');
+  if (oldConfig && (oldConfig.geminiKey || oldConfig.twitterConsumerKey)) {
+    needsMigration = true;
+  }
+} catch (error) {
+  // If migration fails, that's okay - we'll start fresh
+  console.log('No old config to migrate or migration failed:', error.message);
+}
+
+// Initialize new storage without encryption (we'll use safeStorage for sensitive data)
 const store = new Store({
-  encryptionKey: 'twitter-automator-secure-key', // In production, use a more secure key
+  name: 'config',
+  clearInvalidConfig: true, // Clear if JSON is invalid
   defaults: {
-    config: {
-      geminiKey: '',
-      twitterConsumerKey: '',
-      twitterConsumerSecret: '',
-      twitterAccessToken: '',
-      twitterTokenSecret: ''
-    },
     topics: []
   }
 });
+
+// Helper functions for secure storage using OS-level encryption
+const secureStorage = {
+  // Encrypt and store sensitive data using OS keychain
+  set: (key, value) => {
+    if (!value) {
+      store.delete(key);
+      return;
+    }
+    
+    if (safeStorage.isEncryptionAvailable()) {
+      const encrypted = safeStorage.encryptString(value);
+      // Store as base64 for safe JSON serialization
+      store.set(key, encrypted.toString('base64'));
+    } else {
+      // Fallback for systems where encryption is not available
+      console.warn('safeStorage not available, storing unencrypted');
+      store.set(key, value);
+    }
+  },
+  
+  // Retrieve and decrypt sensitive data
+  get: (key, defaultValue = '') => {
+    const stored = store.get(key);
+    if (!stored) return defaultValue;
+    
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const buffer = Buffer.from(stored, 'base64');
+        return safeStorage.decryptString(buffer);
+      } catch (error) {
+        console.error(`Failed to decrypt ${key}:`, error);
+        return defaultValue;
+      }
+    } else {
+      // Fallback: data was stored unencrypted
+      return stored;
+    }
+  }
+};
 
 // Keep a global reference to prevent garbage collection
 let mainWindow;
@@ -69,7 +123,7 @@ ipcMain.handle('gemini-generate', async (event, { apiKey, prompt }) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -194,14 +248,25 @@ ipcMain.handle('twitter-post', async (event, { keys, text }) => {
 
 // --- Secure Storage Handlers ---
 
-// 1. Get Config
+// 1. Get Config - Decrypt sensitive data using OS-level encryption
 ipcMain.handle('store-get-config', async () => {
-  return store.get('config');
+  return {
+    geminiKey: secureStorage.get('geminiKey'),
+    twitterConsumerKey: secureStorage.get('twitterConsumerKey'),
+    twitterConsumerSecret: secureStorage.get('twitterConsumerSecret'),
+    twitterAccessToken: secureStorage.get('twitterAccessToken'),
+    twitterTokenSecret: secureStorage.get('twitterTokenSecret')
+  };
 });
 
-// 2. Save Config
+// 2. Save Config - Encrypt sensitive data using OS-level encryption
 ipcMain.handle('store-save-config', async (event, config) => {
-  store.set('config', config);
+  // Store each sensitive key individually using OS-level encryption
+  secureStorage.set('geminiKey', config.geminiKey || '');
+  secureStorage.set('twitterConsumerKey', config.twitterConsumerKey || '');
+  secureStorage.set('twitterConsumerSecret', config.twitterConsumerSecret || '');
+  secureStorage.set('twitterAccessToken', config.twitterAccessToken || '');
+  secureStorage.set('twitterTokenSecret', config.twitterTokenSecret || '');
   return true;
 });
 
@@ -371,7 +436,38 @@ function createMenu() {
 }
 
 // App lifecycle events
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Perform migration if needed (must be done after app is ready for safeStorage)
+  if (needsMigration && oldStore) {
+    try {
+      console.log('Migrating from old encrypted storage to OS-level safeStorage...');
+      const oldConfig = oldStore.get('config');
+      
+      // Save to new secure storage using safeStorage
+      if (oldConfig.geminiKey) secureStorage.set('geminiKey', oldConfig.geminiKey);
+      if (oldConfig.twitterConsumerKey) secureStorage.set('twitterConsumerKey', oldConfig.twitterConsumerKey);
+      if (oldConfig.twitterConsumerSecret) secureStorage.set('twitterConsumerSecret', oldConfig.twitterConsumerSecret);
+      if (oldConfig.twitterAccessToken) secureStorage.set('twitterAccessToken', oldConfig.twitterAccessToken);
+      if (oldConfig.twitterTokenSecret) secureStorage.set('twitterTokenSecret', oldConfig.twitterTokenSecret);
+      
+      // Migrate topics if they exist
+      const oldTopics = oldStore.get('topics');
+      if (oldTopics && oldTopics.length > 0) {
+        store.set('topics', oldTopics);
+      }
+      
+      // Clear old config data (keep the store file but remove sensitive data)
+      oldStore.delete('config');
+      
+      console.log('✅ Migration complete! API keys now secured with OS-level encryption.');
+    } catch (error) {
+      console.error('Migration failed:', error);
+      console.log('You may need to re-enter your API keys.');
+    }
+  }
+  
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   // On macOS, apps stay active until user explicitly quits
