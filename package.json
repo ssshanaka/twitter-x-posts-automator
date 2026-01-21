@@ -59,6 +59,11 @@
   "build": {
     "appId": "com.tweetautomator.app",
     "productName": "Tweet Automator",
+    "publish": {
+      "provider": "github",
+      "owner": "ssshanaka",
+      "repo": "twitter-x-posts-automator"
+    },
     "directories": {
       "buildResources": "public",
       "output": "dist"

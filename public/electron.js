@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Store = require('electron-store');
 const log = require('electron-log');
+const { autoUpdater } = require('electron-updater');
 const isDev = process.env.NODE_ENV !== 'production';
 
 // Configure electron-log
@@ -15,6 +16,14 @@ log.info(`Environment: ${isDev ? 'Development' : 'Production'}`);
 log.info(`App Version: ${app.getVersion()}`);
 log.info(`Electron Version: ${process.versions.electron}`);
 log.info(`Log file location: ${log.transports.file.getFile().path}`);
+
+// Configure auto-updater to use electron-log
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.autoDownload = false; // Let user decide to download
+autoUpdater.autoInstallOnAppQuit = true; // Install on quit if downloaded
+log.info('Auto-updater configured');
+
 
 // First, try to migrate from old encrypted storage (with hardcoded key)
 let oldStore;
@@ -315,6 +324,112 @@ ipcMain.handle('store-set-autolaunch', async (event, enabled) => {
   return true;
 });
 
+// --- Auto-Updater Event Handlers ---
+
+autoUpdater.on('checking-for-update', () => {
+  log.info('Checking for update...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  log.info(`Update available: ${info.version}`);
+  log.info(`Release notes: ${info.releaseNotes}`);
+  
+  // Notify main window about update
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+      releaseDate: info.releaseDate
+    });
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  log.info('Update not available. Current version is up to date.');
+});
+
+autoUpdater.on('error', (err) => {
+  log.error('Error in auto-updater:', err);
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const percent = Math.round(progressObj.percent);
+  log.info(`Download progress: ${percent}% (${progressObj.bytesPerSecond} bytes/sec)`);
+  
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-download-progress', {
+      percent: progressObj.percent,
+      bytesPerSecond: progressObj.bytesPerSecond,
+      transferred: progressObj.transferred,
+      total: progressObj.total
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  log.info(`Update downloaded: ${info.version}`);
+  log.info('Update will be installed on app restart');
+  
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-downloaded', {
+      version: info.version
+    });
+  }
+});
+
+// --- Auto-Updater IPC Handlers ---
+
+// Download update (user-initiated)
+ipcMain.handle('download-update', async () => {
+  try {
+    log.info('User initiated update download');
+    await autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (error) {
+    log.error('Failed to download update:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Install update and restart
+ipcMain.handle('install-update', () => {
+  log.info('User initiated update installation - restarting app');
+  autoUpdater.quitAndInstall();
+});
+
+// Manual update check (user-initiated)
+ipcMain.handle('check-for-updates', async () => {
+  if (isDev) {
+    log.info('Update check requested but disabled in development mode');
+    return { available: false, message: 'Updates disabled in development mode' };
+  }
+  
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { 
+      available: result.updateInfo.version !== app.getVersion(),
+      currentVersion: app.getVersion(),
+      latestVersion: result.updateInfo.version
+    };
+  } catch (error) {
+    log.error('Update check failed:', error);
+    return { available: false, error: error.message };
+  }
+});
+
+// Update check function
+function checkForUpdates() {
+  if (isDev) {
+    log.info('Auto-updater disabled in development mode');
+    return;
+  }
+  
+  log.info('Checking for updates automatically...');
+  autoUpdater.checkForUpdates().catch(err => {
+    log.error('Auto update check failed:', err);
+  });
+}
+
 
 function createTray() {
   // Use favicon.ico for Windows, logo192.png for other platforms
@@ -586,6 +701,11 @@ app.whenReady().then(() => {
   createTray();
   
   createWindow();
+  
+  // Check for updates 5 seconds after launch (give app time to initialize)
+  setTimeout(() => {
+    checkForUpdates();
+  }, 5000);
 });
 
 app.on('window-all-closed', () => {

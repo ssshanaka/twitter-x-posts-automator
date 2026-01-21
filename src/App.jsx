@@ -308,7 +308,7 @@ export default function TweetAutomator() {
           </div>
           <div>
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-              TweetAutomator
+              Twitter (X) Automator
             </h1>
             <p className="text-xs text-slate-500">Autopilot Edition</p>
           </div>

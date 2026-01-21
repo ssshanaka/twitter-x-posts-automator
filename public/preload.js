@@ -48,6 +48,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Save topics to secure storage
   saveTopics: (topics) => ipcRenderer.invoke('store-save-topics', topics),
+  
+  // Get auto-launch preference
+  getAutoLaunch: () => ipcRenderer.invoke('store-get-autolaunch'),
+  
+  // Set auto-launch preference
+  setAutoLaunch: (enabled) => ipcRenderer.invoke('store-set-autolaunch', enabled),
+  
+  // --- Auto-Updater ---
+  
+  // Check for updates manually
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  
+  // Download available update
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  
+  // Install downloaded update and restart
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  
+  // Listen for update events
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on('update-available', (_, info) => callback(info));
+  },
+  
+  onUpdateDownloadProgress: (callback) => {
+    ipcRenderer.on('update-download-progress', (_, progress) => callback(progress));
+  },
+  
+  onUpdateDownloaded: (callback) => {
+    ipcRenderer.on('update-downloaded', (_, info) => callback(info));
+  }
 });
 
 // Log that preload script loaded successfully (dev only)
