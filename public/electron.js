@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, safeStorage } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, safeStorage, Tray } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const Store = require('electron-store');
@@ -41,7 +41,8 @@ const store = new Store({
   name: 'config',
   clearInvalidConfig: true, // Clear if JSON is invalid
   defaults: {
-    topics: []
+    topics: [],
+    autoLaunch: false // Auto-launch on system startup
   }
 });
 
@@ -87,6 +88,7 @@ const secureStorage = {
 
 // Keep a global reference to prevent garbage collection
 let mainWindow;
+let tray = null;
 
 // --- OAuth 1.0a Helper (Node.js version) ---
 const OAuth = {
@@ -293,6 +295,75 @@ ipcMain.handle('store-save-topics', async (event, topics) => {
   return true;
 });
 
+// 5. Get Auto-Launch Preference
+ipcMain.handle('store-get-autolaunch', async () => {
+  return store.get('autoLaunch', false);
+});
+
+// 6. Set Auto-Launch Preference
+ipcMain.handle('store-set-autolaunch', async (event, enabled) => {
+  store.set('autoLaunch', enabled);
+  
+  // Update OS login item settings
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    openAsHidden: false, // Show window on startup
+    args: []
+  });
+  
+  log.info(`Auto-launch ${enabled ? 'enabled' : 'disabled'}`);
+  return true;
+});
+
+
+function createTray() {
+  // Use favicon.ico for Windows, logo192.png for other platforms
+  const iconPath = process.platform === 'win32' 
+    ? path.join(__dirname, 'favicon.ico')
+    : path.join(__dirname, 'logo192.png');
+  
+  tray = new Tray(iconPath);
+  
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show App',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    },
+    {
+      type: 'separator'
+    },
+    {
+      label: 'Quit',
+      click: () => {
+        log.info('User quit from tray menu');
+        app.isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+  
+  tray.setToolTip('Twitter Automator - Running in background');
+  tray.setContextMenu(contextMenu);
+  
+  // Show window when tray icon is clicked (Windows/Linux)
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    }
+  });
+  
+  log.info('System tray icon created');
+}
 
 function createWindow() {
   // Create the browser window with security settings
@@ -326,7 +397,7 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Load your React app
+  // Load your Twitter (X) Automator app
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
     // Open DevTools automatically in development
@@ -358,7 +429,31 @@ function createWindow() {
     });
   });
 
-  // Handle window closed
+  // Minimize to tray instead of closing (critical for automation)
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+      log.info('Window minimized to tray - automation continues in background');
+      
+      // Show notification on first minimize (optional but helpful)
+      if (!mainWindow.hasShownTrayNotice) {
+        mainWindow.webContents.executeJavaScript(`
+          if (window.Notification && Notification.permission === 'granted') {
+            new Notification('Twitter Automator', {
+              body: 'App minimized to system tray. Automation continues in background.',
+              icon: '${path.join(__dirname, 'logo192.png').replace(/\\/g, '/')}'
+            });
+          }
+        `).catch(err => log.debug('Notification error:', err));
+        mainWindow.hasShownTrayNotice = true;
+      }
+      
+      return false;
+    }
+  });
+
+  // Handle window closed (only when actually quitting)
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -478,20 +573,38 @@ app.whenReady().then(() => {
     }
   }
   
+  // Sync auto-launch preference with OS login items
+  const autoLaunchEnabled = store.get('autoLaunch', false);
+  app.setLoginItemSettings({
+    openAtLogin: autoLaunchEnabled,
+    openAsHidden: false,
+    args: []
+  });
+  log.info(`Auto-launch on startup: ${autoLaunchEnabled ? 'enabled' : 'disabled'}`);
+  
+  // Create system tray icon for background operation
+  createTray();
+  
   createWindow();
 });
 
 app.on('window-all-closed', () => {
-  // On macOS, apps stay active until user explicitly quits
-  if (process.platform !== 'darwin') {
+  // Don't quit when all windows are closed - keep running in tray for automation
+  // This is critical for background automation to continue
+  // Only quit if explicitly requested from tray menu or app.quit() is called
+  if (app.isQuitting) {
     app.quit();
+  } else {
+    log.info('All windows closed - app continues running in system tray');
   }
 });
 
 app.on('activate', () => {
-  // On macOS, re-create window when dock icon is clicked
+  // On macOS, re-create/show window when dock icon is clicked
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  } else if (mainWindow) {
+    mainWindow.show();
   }
 });
 
