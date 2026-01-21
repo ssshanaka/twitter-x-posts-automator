@@ -1,32 +1,33 @@
-# 🤖 Tweet Automator: Autopilot Edition
+# 🤖 Twitter (X) Automator: Autopilot Edition
 
-Tweet Automator is a high-performance, AI-driven application designed to automate your Twitter/X presence. By leveraging the power of **Google Gemini AI**, it generates insightful, engaging, and professional content based on your chosen topics and schedules posts automatically.
+Twitter (X) Automator is a high-performance, AI-driven desktop application designed to automate your Twitter/X presence. By leveraging the power of **Google Gemini AI**, it generates insightful, engaging, and professional content based on your chosen topics and schedules posts automatically.
 
-**Now available as a Desktop App!** 🖥️
+**Now upgraded with Enterprise-Grade Security and Background Automation!** 🛡️👻
 
 ![Aesthetic Dark Mode UI](https://img.shields.io/badge/UI-Dark%20Mode-blueviolet)
-![Tailwind CSS](https://img.shields.io/badge/Styled%20with-Tailwind%20CSS-06B6D4)
+![Styled with Tailwind](https://img.shields.io/badge/Styled%20with-Tailwind%20CSS-06B6D4)
 ![Powered by Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4)
 ![Electron](https://img.shields.io/badge/Desktop-Electron-47848F)
+![Security](https://img.shields.io/badge/Security-OS%20Encryption-green)
 
 ## ✨ Key Features
 
 - **🧠 AI Content Engine**: Uses Gemini 2.5 Flash to generate context-aware, professional tweets under 280 characters.
-- **🚀 Autopilot Mode**: Fully automated loop that picks random topics and posts every 40 minutes.
-- **📊 Topic Manager**: Add up to 10 niche topics (e.g., AI, Crypto, Web Dev) to diversify your feed.
-- **🖥️ System Console**: Real-time terminal-style logging to track generations, signings, and API responses.
-- **🔒 Secure Configuration**: Secrets are managed via `.env` files and local persistence, keeping your keys safe and private.
-- **🎨 Premium UI**: A sleek, glassmorphic dark interface built with Tailwind CSS and Lucide icons.
-- **💻 Desktop App**: Native desktop application with Electron - works offline and provides a better user experience.
+- **🚀 Autopilot Mode**: Fully automated loop that picks random topics and generates posts every 40 minutes.
+- **🛡️ Secure Storage**: API keys are encrypted using **OS-level encryption** (Windows DPAPI / Mac Keychain) — no keys are ever stored in plain text.
+- **👻 Background Automation**: The app minimizes to the **System Tray**, keeping your automation running silently in the background even when the window is closed.
+- **🔄 Auto-Updates**: Seamlessly updates itself via GitHub Releases, so you're always on the latest version.
+- **📊 Topic Manager**: Manage up to 10 niche topics (e.g., AI, Crypto, Web Dev) to diversify your feed.
+- **📝 Production Logging**: Robust file-based logging system for debugging issues in production builds.
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 19
-- **Styling**: Tailwind CSS (v3)
-- **Desktop**: Electron (with security barriers)
+- **Frontend**: React 19, Tailwind CSS (v3)
+- **Desktop**: Electron (v33)
 - **AI**: Google Generative AI (Gemini API)
-- **Authentication**: OAuth 1.0a (Custom Native Implementation)
-- **Icons**: Lucide React
+- **Security**: Electron SafeStorage, Context Isolation
+- **Storage**: Electron Store (Encrypted)
+- **Logging**: Electron Log
 
 ## 🚀 Getting Started
 
@@ -34,7 +35,7 @@ Tweet Automator is a high-performance, AI-driven application designed to automat
 
 - [Node.js](https://nodejs.org/) (v16 or higher)
 - A Gemini API Key (from [Google AI Studio](https://aistudio.google.com/))
-- Twitter API Credentials (Consumer Key/Secret & Access Token/Secret from [Twitter Developer Portal](https://developer.twitter.com/))
+- Twitter API Credentials (from [Twitter Developer Portal](https://developer.twitter.com/))
 
 ### 2. Installation
 
@@ -44,125 +45,66 @@ Clone the repository and install dependencies:
 npm install
 ```
 
-### 3. Environment Setup
+### 3. Run the App
 
-Create a `.env` file in the root directory and add your credentials:
-
-```env
-REACT_APP_GEMINI_KEY=your_gemini_key
-REACT_APP_TWITTER_CONSUMER_KEY=your_key
-REACT_APP_TWITTER_CONSUMER_SECRET=your_secret
-REACT_APP_TWITTER_ACCESS_TOKEN=your_token
-REACT_APP_TWITTER_TOKEN_SECRET=your_token_secret
-REACT_APP_CORS_PROXY=https://cors-anywhere.herokuapp.com/
-```
-
-### 4. Run the App
-
-#### Option A: Web Browser (React Only)
-
-```bash
-npm start
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-#### Option B: Desktop App (React + Electron Together)
+#### Development Mode (Recommended)
 
 ```bash
 npm run electron:dev
 ```
 
-This will start the React dev server and automatically launch the Electron desktop window.
+Starts the React dev server and Electron window with hot-reloading enabled.
 
-#### Option C: Desktop App (Separate Processes)
-
-Terminal 1:
-
-```bash
-npm start
-```
-
-Terminal 2 (after React starts):
-
-```bash
-npm run electron:start
-```
-
-## 🖥️ Desktop App Features
-
-### Security Architecture
-
-The Electron desktop app is built with strict security barriers:
-
-✅ **No Node.js Integration**: `nodeIntegration: false` prevents the renderer from accessing Node.js APIs  
-✅ **Context Isolation**: `contextIsolation: true` ensures preload scripts run in isolated context  
-✅ **Controlled IPC Bridge**: Only safe, approved APIs are exposed via `contextBridge`  
-✅ **Content Security Policy**: CSP headers restrict resource loading  
-✅ **Navigation Protection**: Prevents navigation to external URLs
-
-### Available Scripts
-
-| Script                       | Description                                             |
-| ---------------------------- | ------------------------------------------------------- |
-| `npm start`                  | Run React dev server only (browser)                     |
-| `npm run electron:start`     | Launch Electron app (requires React dev server running) |
-| `npm run electron:dev`       | Run React dev server + Electron together                |
-| `npm run electron:build`     | Build production desktop app for current platform       |
-| `npm run electron:build:all` | Build for all platforms (Windows, Mac, Linux)           |
-| `npm run build`              | Build React production bundle                           |
-
-### Production Build
-
-To create a distributable desktop application:
+#### Production Build
 
 ```bash
 npm run electron:build
 ```
 
-The built application will be in the `dist/` folder:
+Creates an optimized installer (`.exe` for Windows, `.dmg` for Mac) in the `dist/` folder.
 
-- **Windows**: `.exe` installer (NSIS)
-- **macOS**: `.dmg` disk image
-- **Linux**: `.AppImage` executable
+## 🖥️ Desktop App Capabilities
 
-### Desktop App Benefits
+### 🔒 Enterprise-Grade Security
 
-1. **Standalone Application**: No need to keep browser tabs open
-2. **Native Experience**: Proper window management, menu bar, keyboard shortcuts
-3. **Better Performance**: Optimized for desktop use
-4. **Auto-Updates**: Built-in update mechanism (configurable)
-5. **System Integration**: Native notifications and system tray support
+We take security seriously. Unlike typical web apps:
+
+- **Zero Plaintext Keys**: Your API keys are encrypted using **Electron's SafeStorage API**.
+- **OS Integration**: Encryption uses **Windows Data Protection API (DPAPI)**, **macOS Keychain**, or **Linux Secret Service**.
+- **Context Isolation**: The renderer process is isolated from Node.js APIs to prevent remote code execution attacks.
+
+### 👻 System Tray & Background Run
+
+Start the automation and forget about it.
+
+- **Minimize to Tray**: Clicking "X" hides the window but keeps the app running in the system tray (notification area).
+- **Control Menu**: Right-click the tray icon to "Show App" or "Quit" completely.
+- **Persistent Operation**: Automation schedules continue uninterrupted in the background.
+
+### 🔄 Seamless Auto-Updates
+
+Stay up to date effortlessly.
+
+- The app checks for updates from our GitHub repository on startup.
+- Updates are downloaded in the background.
+- The new version is installed automatically the next time you restart the app.
+
+### 📂 Troubleshooting & Logs
+
+If something goes wrong, detailed logs are available locally:
+
+- **Windows**: `%APPDATA%\twitter-x-automator\logs\`
+- **Mac**: `~/Library/Logs/twitter-x-automator/`
 
 ## 📖 How to Use
 
-1.  **Configure**: Click the gear icon (Settings) in the top right to verify your API keys.
-2.  **Add Topics**: Enter topics like "Machine Learning" or "Productivity" in the Topic Manager.
+1.  **Configure**: Click the gear icon (Settings) and enter your API keys. They are encrypted instantly on save.
+2.  **Add Topics**: Enter topics like "Machine Learning" or "Indie Hacking".
 3.  **Deploy**:
-    - Click **Start Autopilot** for hands-free automation.
-    - Click **Run Once** to generate and post a single tweet immediately.
-4.  **Monitor**: Watch the **System Logs** to see the AI in action.
-
-## ⚠️ Important Notes
-
-- **Desktop vs Browser Mode**:
-  - **Desktop App** (Recommended): No CORS issues! API calls go through the Electron backend.
-  - **Browser Mode**: Limited - cannot make automated API calls due to CORS restrictions. Only Web Intents (manual posting) work.
-- **Persistence**: Your configuration and topics are saved to `localStorage`.
-- **Keep it Open**:
-  - **Desktop Version**: Can run in the background with the window minimized.
-  - **Web Version**: Requires the browser tab to remain active.
-- **Security**: API keys are stored locally. Never commit `.env` files to version control.
-
-## 🔐 Security Best Practices
-
-The desktop app implements multiple security layers:
-
-1. **Environment Variables**: API keys loaded from `.env` file (never in code)
-2. **Context Isolation**: Renderer process cannot access Node.js directly
-3. **Preload Script**: Controlled bridge exposes only safe APIs
-4. **CSP Headers**: Restricts script sources and connections
-5. **Navigation Guards**: Prevents malicious URL redirects
+    - Click **Start Autopilot** for continuous background automation.
+    - Click **Run Once** to test a single tweet.
+4.  **Hide**: Close the window to minimize to the tray.
+5.  **Monitor**: Watch the standard logs in the UI or check the log files for deeper details.
 
 ---
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Send, Twitter, Bot, AlertTriangle, CheckCircle, XCircle, Terminal, Key, Loader2, Edit3, ExternalLink, Plus, Trash2, Play, Square, Clock } from 'lucide-react';
+import { Settings, Send, Twitter, AlertTriangle, CheckCircle, XCircle, Terminal, Key, Loader2, Edit3, ExternalLink, Plus, Trash2, Play, Square, Clock } from 'lucide-react';
 
 /**
  * ------------------------------------------------------------------
@@ -303,8 +303,8 @@ export default function TweetAutomator() {
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-2 rounded-lg">
-            <Bot className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-center p-1 rounded-xl bg-slate-800/50 shadow-lg border border-slate-700/50">
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
           </div>
           <div>
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
