@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const Store = require('electron-store');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = !app.isPackaged;
 
 // Configure electron-log
 // In production: logs saved to %APPDATA%/twitter-x-automator/logs/

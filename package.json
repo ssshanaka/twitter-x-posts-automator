@@ -1,6 +1,8 @@
 {
   "name": "twitter-x-automator",
   "version": "0.1.0",
+  "description": "A Twitter/X automation tool for posting tweets on autopilot.",
+  "author": "Sandaruwan Shanaka",
   "private": true,
   "main": "public/electron.js",
   "homepage": ".",
